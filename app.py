@@ -54,7 +54,7 @@ VIDEO_TEMPLATE = '''
                                     <source src="${v.url}" type="${mimeType}">
                                 </video-js>`;
                             list.appendChild(div);
-                            videojs('video-${v.id}');
+                            videojs(`video-${v.id}`); // Use backticks for template literal
                         });
                     }
                 })
