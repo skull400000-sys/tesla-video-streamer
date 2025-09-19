@@ -57,6 +57,10 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn_str = os.environ['DATABASE_URL']
         with psycopg.connect(conn_str) as conn:
             with conn.cursor() as c:
+                # *** CHANGE IS HERE: Added a command to delete the user's old videos first ***
+                c.execute("DELETE FROM videos WHERE user_id = %s", (user_id,))
+                
+                # Now insert the new video
                 c.execute("INSERT INTO videos (user_id, url, title) VALUES (%s, %s, %s)", (user_id, url, title))
         logger.info(f"Added video for user {user_id}: {title}")
         await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")

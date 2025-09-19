@@ -111,7 +111,12 @@ def proxy_video(video_id):
                 video_url = result[0]
         
         print(f"Proxying video {video_id} from {video_url}")
-        response = requests.get(video_url, stream=True, timeout=10)
+        
+        # *** CHANGE IS HERE: Added a User-Agent header to mimic a browser ***
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(video_url, stream=True, timeout=15, headers=headers)
         response.raise_for_status()
         
         # Explicitly set MIME type based on file extension
