@@ -1,7 +1,8 @@
 import os
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, send_file, abort
 import psycopg
 from database import init_db
+import requests
 
 app = Flask(__name__)
 
@@ -51,10 +52,10 @@ VIDEO_TEMPLATE = '''
                             div.className = 'video-container';
                             div.innerHTML = `<h3>${v.title}</h3>
                                 <video-js id="video-${v.id}" class="vjs-default-skin" controls preload="auto" width="800" height="450">
-                                    <source src="${v.url}" type="${mimeType}">
+                                    <source src="/proxy/video/${v.id}" type="${mimeType}">
                                 </video-js>`;
                             list.appendChild(div);
-                            videojs(`video-${v.id}`); // Use backticks for template literal
+                            videojs(`video-${v.id}`);
                         });
                     }
                 })
@@ -96,6 +97,33 @@ def get_videos():
     except Exception as e:
         print(f"Error fetching videos for user_id {user_id}: {e}")
         return jsonify([]), 500
+
+@app.route('/proxy/video/<int:video_id>')
+def proxy_video(video_id):
+    try:
+        conn_str = os.environ['DATABASE_URL']
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT url FROM videos WHERE id = %s", (video_id,))
+                result = c.fetchone()
+                if not result:
+                    abort(404)
+                video_url = result[0]
+        
+        # Fetch the video content
+        response = requests.get(video_url, stream=True, timeout=10)
+        response.raise_for_status()
+        
+        # Set headers to stream the video
+        return send_file(
+            response.raw,
+            mimetype=response.headers.get('content-type', 'video/mp4'),
+            as_attachment=False,
+            attachment_filename='video.mp4'
+        )
+    except Exception as e:
+        print(f"Error proxying video {video_id}: {e}")
+        abort(500)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
