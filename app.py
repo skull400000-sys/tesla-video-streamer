@@ -61,7 +61,7 @@ VIDEO_TEMPLATE = '''
                 })
                 .catch(err => {
                     console.error('Fetch error:', err);
-                    document.getElementById('video-list').innerHTML = '<p class="error">Error loading videos: ' + err.message + '. Please try again.</p>';
+                    document.getElementById('video-list').innerHTML = '<p class="error'>Error loading videos: ' + err.message + '. Please try again.</p>';
                 });
         }
     </script>
@@ -110,19 +110,25 @@ def proxy_video(video_id):
                     abort(404)
                 video_url = result[0]
         
-        # Fetch the video content
+        print(f"Proxying video {video_id} from {video_url}")
         response = requests.get(video_url, stream=True, timeout=10)
         response.raise_for_status()
         
-        # Set headers to stream the video
+        # Explicitly set MIME type based on file extension
+        mime_type = 'video/mp4' if video_url.lower().endswith('.mp4') else 'video/x-matroska'
+        print(f"Proxying with MIME type: {mime_type}")
+        
         return send_file(
             response.raw,
-            mimetype=response.headers.get('content-type', 'video/mp4'),
+            mimetype=mime_type,
             as_attachment=False,
-            attachment_filename='video.mp4'
+            attachment_filename='video.mp4'  # Force .mp4 filename for better compatibility
         )
-    except Exception as e:
+    except requests.RequestException as e:
         print(f"Error proxying video {video_id}: {e}")
+        abort(500)
+    except Exception as e:
+        print(f"Unexpected error proxying video {video_id}: {e}")
         abort(500)
 
 if __name__ == '__main__':
