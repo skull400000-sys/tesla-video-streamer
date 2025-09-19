@@ -8,7 +8,7 @@ from io import BytesIO
 from PIL import Image
 import uuid
 
-BOT_TOKEN = os.environ['8003087894:AAEC20mme41CJ9SHIEx05yxsJQJ54mKgMS8']  # Uses environment variable
+BOT_TOKEN = os.environ['BOT_TOKEN']  # Uses environment variable
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
