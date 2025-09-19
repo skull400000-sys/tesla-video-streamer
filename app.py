@@ -47,7 +47,7 @@ VIDEO_TEMPLATE = '''
                         list.innerHTML = '<p>No videos added yet. Send a video URL to the Telegram bot.</p>';
                     } else {
                         videos.forEach(v => {
-                            const mimeType = v.url.toLowerCase().endswith('.mkv') ? 'video/x-matroska' : 'video/mp4';
+                            const mimeType = v.url.toLowerCase().endsWith('.mkv') ? 'video/x-matroska' : 'video/mp4';
                             const div = document.createElement('div');
                             div.className = 'video-container';
                             div.innerHTML = `<h3>${v.title}</h3>
