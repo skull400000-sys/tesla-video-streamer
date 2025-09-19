@@ -2,7 +2,7 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import sqlite3
+import psycopg2
 import qrcode
 from io import BytesIO
 from PIL import Image
@@ -23,9 +23,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or "Unknown"
     try:
-        conn = sqlite3.connect('videos.db')
+        conn_str = os.environ['DATABASE_URL']
+        conn = psycopg2.connect(conn_str)
         c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
+        c.execute("INSERT INTO users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING", (user_id, username))
         conn.commit()
         conn.close()
         
@@ -52,22 +53,20 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     user_id = update.effective_user.id
-    title = url.split('/')[-1]  # Extract filename from URL
-    if not (title.lower().endswith('.mp4') or title.lower().endswith('.mkv')):
-        await update.message.reply_text("Only .mp4 and .mkv URLs are supported.")
-        return
+    title = url.split('/')[-1]
     
     try:
-        conn = sqlite3.connect('videos.db')
+        conn_str = os.environ['DATABASE_URL']
+        conn = psycopg2.connect(conn_str)
         c = conn.cursor()
-        c.execute("INSERT INTO videos (user_id, url, title) VALUES (?, ?, ?)", (user_id, url, title))
+        c.execute("INSERT INTO videos (user_id, url, title) VALUES (%s, %s, %s)", (user_id, url, title))
         conn.commit()
         conn.close()
         logger.info(f"Added video for user {user_id}: {title}")
         await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")
     except Exception as e:
-        logger.error(f"Error adding video for user {user_id}: {e}")
-        await update.message.reply_text(f"Error adding video: {str(e)}. Please try again.")
+        logger.error(f"Error adding video: {e}")
+        await update.message.reply_text("Error adding video. Please try again.")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error: {context.error}")
@@ -79,7 +78,6 @@ def main():
         logger.info("Starting bot...")
         application = Application.builder().token(BOT_TOKEN).build()
         
-        # Explicitly disable webhook
         import telegram
         bot = telegram.Bot(token=BOT_TOKEN)
         bot.delete_webhook(drop_pending_updates=True)

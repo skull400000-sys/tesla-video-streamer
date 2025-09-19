@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template_string, request, jsonify
-import sqlite3
+import psycopg2
 from database import init_db
 
 app = Flask(__name__)
@@ -28,20 +28,19 @@ VIDEO_TEMPLATE = '''
     <div id="video-list"></div>
     <script>
         const userId = '{{user_id}}';
-        console.log('User ID:', userId); // Debug: Check if user_id is correct
+        console.log('User ID:', userId); // Debug
         if (!userId) {
             document.getElementById('video-list').innerHTML = '<p class="error">No user ID provided. Please scan the QR code from the bot.</p>';
         } else {
             const videoUrl = '/videos?user_id=' + encodeURIComponent(userId);
-            console.log('Fetching videos from:', videoUrl); // Debug: Confirm fetch URL
+            console.log('Fetching:', videoUrl); // Debug
             fetch(videoUrl)
                 .then(r => {
-                    console.log('Fetch response status:', r.status); // Debug: Response status
                     if (!r.ok) throw new Error('Fetch failed: ' + r.status + ' ' + r.statusText);
                     return r.json();
                 })
                 .then(videos => {
-                    console.log('Fetched videos:', videos); // Debug: Show video data
+                    console.log('Fetched videos:', videos); // Debug
                     const list = document.getElementById('video-list');
                     if (videos.length === 0) {
                         list.innerHTML = '<p>No videos added yet. Send a video URL to the Telegram bot.</p>';
@@ -60,7 +59,7 @@ VIDEO_TEMPLATE = '''
                     }
                 })
                 .catch(err => {
-                    console.error('Fetch error:', err); // Debug: Error details
+                    console.error('Fetch error:', err); // Debug
                     document.getElementById('video-list').innerHTML = '<p class="error">Error loading videos: ' + err.message + '. Please try again.</p>';
                 });
         }
@@ -87,12 +86,13 @@ def get_videos():
         return jsonify([]), 400
     
     try:
-        conn = sqlite3.connect('videos.db')
+        conn_str = os.environ['DATABASE_URL']
+        conn = psycopg2.connect(conn_str)
         c = conn.cursor()
-        c.execute("SELECT id, title, url FROM videos WHERE user_id = ? ORDER BY added_at DESC", (user_id,))
+        c.execute("SELECT id, title, url FROM videos WHERE user_id = %s ORDER BY added_at DESC", (user_id,))
         videos = [{'id': row[0], 'title': row[1], 'url': row[2]} for row in c.fetchall()]
         conn.close()
-        print(f"Fetched {len(videos)} videos for user_id {user_id}: {videos}")  # Detailed logging
+        print(f"Fetched {len(videos)} videos for user_id {user_id}: {videos}")
         return jsonify(videos)
     except Exception as e:
         print(f"Error fetching videos for user_id {user_id}: {e}")
