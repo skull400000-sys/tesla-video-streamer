@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio # Import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import psycopg
@@ -57,10 +58,7 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn_str = os.environ['DATABASE_URL']
         with psycopg.connect(conn_str) as conn:
             with conn.cursor() as c:
-                # *** CHANGE IS HERE: Added a command to delete the user's old videos first ***
                 c.execute("DELETE FROM videos WHERE user_id = %s", (user_id,))
-                
-                # Now insert the new video
                 c.execute("INSERT INTO videos (user_id, url, title) VALUES (%s, %s, %s)", (user_id, url, title))
         logger.info(f"Added video for user {user_id}: {title}")
         await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")
@@ -73,22 +71,25 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.message:
         await update.message.reply_text("An error occurred. Please try again or contact support.")
 
-def main():
+# *** CHANGE IS HERE: The main function is now async to handle awaits correctly ***
+async def main():
     try:
         logger.info("Starting bot...")
         application = Application.builder().token(BOT_TOKEN).build()
         
-        import telegram
-        bot = telegram.Bot(token=BOT_TOKEN)
-        bot.delete_webhook(drop_pending_updates=True)
+        # This properly awaits the webhook deletion to prevent conflicts
+        await application.bot.delete_webhook(drop_pending_updates=True)
         
         application.add_handler(CommandHandler("start", start))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, add_video))
         application.add_error_handler(error_handler)
-        application.run_polling(drop_pending_updates=True)
+        
+        # This runs the bot and drops pending updates on startup
+        await application.run_polling(drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Bot failed to start: {e}")
         raise
 
 if __name__ == '__main__':
-    main()
+    # This runs the async main function
+    asyncio.run(main())

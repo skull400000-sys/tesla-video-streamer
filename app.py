@@ -85,7 +85,7 @@ def get_videos():
     if not user_id:
         print("Error: No user_id provided in /videos request")
         return jsonify([]), 400
-    
+
     try:
         conn_str = os.environ['DATABASE_URL']
         with psycopg.connect(conn_str) as conn:
@@ -109,25 +109,23 @@ def proxy_video(video_id):
                 if not result:
                     abort(404)
                 video_url = result[0]
-        
+
         print(f"Proxying video {video_id} from {video_url}")
         
-        # *** CHANGE IS HERE: Added a User-Agent header to mimic a browser ***
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         response = requests.get(video_url, stream=True, timeout=15, headers=headers)
         response.raise_for_status()
         
-        # Explicitly set MIME type based on file extension
         mime_type = 'video/mp4' if video_url.lower().endswith('.mp4') else 'video/x-matroska'
         print(f"Proxying with MIME type: {mime_type}")
         
+        # *** CHANGE IS HERE: Replaced outdated parameters with the correct 'download_name' ***
         return send_file(
             response.raw,
             mimetype=mime_type,
-            as_attachment=False,
-            attachment_filename='video.mp4'  # Force .mp4 filename for better compatibility
+            download_name='video.mp4'
         )
     except requests.RequestException as e:
         print(f"Error proxying video {video_id}: {e}")
