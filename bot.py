@@ -23,8 +23,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with conn.cursor() as c:
                 c.execute("INSERT INTO users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING", (user_id, username))
         
-        # Ensure your web URL is correct here
-        qr_data = f"https://tesla-video-streamer.onrender.com/login?user_id={user_id}"
+        # *** IMPORTANT: Update this URL with your new Fly.io hostname ***
+        app_hostname = "https://teslastreamer.fly.dev" # <-- CHANGE THIS
+        
+        qr_data = f"{app_hostname}/login?user_id={user_id}"
         qr = qrcode.QRCode(version=1, box_size=10, border=5)
         qr.add_data(qr_data)
         qr.make(fit=True)
@@ -49,6 +51,11 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     title = url.split('/')[-1]
     
+    incompatible_keywords = ['hevc', 'h265', 'x265']
+    warning_message = ""
+    if any(keyword in url.lower() for keyword in incompatible_keywords):
+        warning_message = "\n\n⚠️ **Warning:** This link appears to be an HEVC/x265 video, which may not play in the Tesla browser. If it doesn't work, please find an H.264/x264 source."
+
     try:
         conn_str = os.environ['DATABASE_URL']
         with psycopg.connect(conn_str) as conn:
@@ -56,12 +63,11 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 c.execute("DELETE FROM videos WHERE user_id = %s", (user_id,))
                 c.execute("INSERT INTO videos (user_id, url, title) VALUES (%s, %s, %s)", (user_id, url, title))
         logger.info(f"Added video for user {user_id}: {title}")
-        await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")
+        await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!{warning_message}", parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Error adding video: {e}")
         await update.message.reply_text("Error adding video. Please try again.")
 
-# *** NEW FUNCTION: Handles the /clear command ***
 async def clear_videos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"Received /clear command from user {user_id}")
@@ -70,7 +76,7 @@ async def clear_videos(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with psycopg.connect(conn_str) as conn:
             with conn.cursor() as c:
                 c.execute("DELETE FROM videos WHERE user_id = %s", (user_id,))
-                deleted_count = c.rowcount  # Get the number of rows deleted
+                deleted_count = c.rowcount
         
         logger.info(f"Cleared {deleted_count} videos for user {user_id}")
         await update.message.reply_text(f"✅ Successfully cleared {deleted_count} video(s).")
@@ -89,7 +95,6 @@ def main():
         application = Application.builder().token(BOT_TOKEN).build()
         
         application.add_handler(CommandHandler("start", start))
-        # *** REGISTER NEW COMMAND: Add the handler for /clear ***
         application.add_handler(CommandHandler("clear", clear_videos))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, add_video))
         application.add_error_handler(error_handler)
