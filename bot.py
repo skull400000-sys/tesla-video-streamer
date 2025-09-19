@@ -1,70 +1,93 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import sqlite3
 import qrcode
 from io import BytesIO
 from PIL import Image
-import uuid
-from database import init_db  # Import database initialization
 
-# Enable logging for debugging
+from database import init_db
+
+# Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ['BOT_TOKEN']
 
-# Initialize database on bot startup
+# Initialize database
 init_db()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received /start from user {update.effective_user.id}")
     user_id = update.effective_user.id
     username = update.effective_user.username or "Unknown"
-    conn = sqlite3.connect('videos.db')
-    c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
-    conn.commit()
-    conn.close()
-    
-    qr_data = f"https://tesla-video-streamer.onrender.com/login?user_id={user_id}"
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(qr_data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    
-    bio = BytesIO()
-    img.save(bio, 'PNG')
-    bio.seek(0)
-    
-    await update.message.reply_photo(photo=bio, caption="Scan this QR in your Tesla browser to log in and see your videos!")
+    try:
+        conn = sqlite3.connect('videos.db')
+        c = conn.cursor()
+        c.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
+        conn.commit()
+        conn.close()
+        
+        qr_data = f"https://tesla-video-streamer.onrender.com/login?user_id={user_id}"
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        bio = BytesIO()
+        img.save(bio, 'PNG')
+        bio.seek(0)
+        
+        await update.message.reply_photo(photo=bio, caption="Scan this QR in your Tesla browser to log in and see your videos!")
+    except Exception as e:
+        logger.error(f"Error in /start: {e}")
+        await update.message.reply_text("Error generating QR code. Please try again.")
 
 async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"Received video URL from user {update.effective_user.id}: {update.message.text}")
-    if not update.message.text.startswith('http'):
-        await update.message.reply_text("Please send a direct video URL (e.g., .mp4 link). For YouTube, extract the direct URL first using yt-dlp.")
+    logger.info(f"Received message from user {update.effective_user.id}: {update.message.text}")
+    url = update.message.text.strip()
+    if not url.startswith('http'):
+        await update.message.reply_text("Please send a direct video URL (e.g., .mp4 or .mkv).")
         return
     
     user_id = update.effective_user.id
-    url = update.message.text
-    title = url.split('/')[-1]
+    title = url.split('/')[-1]  # Extract filename from URL
+    if not (title.lower().endswith('.mp4') or title.lower().endswith('.mkv')):
+        await update.message.reply_text("Only .mp4 and .mkv URLs are supported.")
+        return
     
-    conn = sqlite3.connect('videos.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO videos (user_id, url, title) VALUES (?, ?, ?)", (user_id, url, title))
-    conn.commit()
-    conn.close()
-    
-    await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")
+    try:
+        conn = sqlite3.connect('videos.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO videos (user_id, url, title) VALUES (?, ?, ?)", (user_id, url, title))
+        conn.commit()
+        conn.close()
+        logger.info(f"Added video for user {user_id}: {title}")
+        await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")
+    except Exception as e:
+        logger.error(f"Error adding video for user {user_id}: {e}")
+        await update.message.reply_text(f"Error adding video: {str(e)}. Please try again.")
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Update {update} caused error: {context.error}")
+    if update and update.message:
+        await update.message.reply_text("An error occurred. Please try again or contact support.")
 
 def main():
     try:
         logger.info("Starting bot...")
         application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Explicitly disable webhook
+        import telegram
+        bot = telegram.Bot(token=BOT_TOKEN)
+        bot.delete_webhook(drop_pending_updates=True)
+        
         application.add_handler(CommandHandler("start", start))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, add_video))
-        application.run_polling()
+        application.add_error_handler(error_handler)
+        application.run_polling(drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Bot failed to start: {e}")
         raise
