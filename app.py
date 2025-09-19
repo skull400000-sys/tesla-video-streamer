@@ -1,8 +1,12 @@
 import os
 from flask import Flask, render_template_string, request, jsonify
 import sqlite3
+from database import init_db  # Import database initialization
 
 app = Flask(__name__)
+
+# Initialize database on app startup
+init_db()
 
 # HTML template for video player (using Video.js for better compatibility)
 VIDEO_TEMPLATE = '''
