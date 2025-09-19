@@ -1,0 +1,5 @@
+flask
+python-telegram-bot
+qrcode[pil]
+pillow
+gunicorn
