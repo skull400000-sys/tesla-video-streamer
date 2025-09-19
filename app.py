@@ -28,34 +28,39 @@ VIDEO_TEMPLATE = '''
     <div id="video-list"></div>
     <script>
         const userId = '{{user_id}}';
+        console.log('User ID:', userId); // Debug: Check if user_id is correct
         if (!userId) {
             document.getElementById('video-list').innerHTML = '<p class="error">No user ID provided. Please scan the QR code from the bot.</p>';
         } else {
-            fetch('/videos?user_id=' + encodeURIComponent(userId))
+            const videoUrl = '/videos?user_id=' + encodeURIComponent(userId);
+            console.log('Fetching videos from:', videoUrl); // Debug: Confirm fetch URL
+            fetch(videoUrl)
                 .then(r => {
+                    console.log('Fetch response status:', r.status); // Debug: Response status
                     if (!r.ok) throw new Error('Fetch failed: ' + r.status + ' ' + r.statusText);
                     return r.json();
                 })
                 .then(videos => {
+                    console.log('Fetched videos:', videos); // Debug: Show video data
                     const list = document.getElementById('video-list');
                     if (videos.length === 0) {
                         list.innerHTML = '<p>No videos added yet. Send a video URL to the Telegram bot.</p>';
                     } else {
                         videos.forEach(v => {
-                            const mimeType = v.url.toLowerCase().endsWith('.mkv') ? 'video/x-matroska' : 'video/mp4';
+                            const mimeType = v.url.toLowerCase().endswith('.mkv') ? 'video/x-matroska' : 'video/mp4';
                             const div = document.createElement('div');
                             div.className = 'video-container';
                             div.innerHTML = `<h3>${v.title}</h3>
                                 <video-js id="video-${v.id}" class="vjs-default-skin" controls preload="auto" width="800" height="450">
                                     <source src="${v.url}" type="${mimeType}">
-                                </video-js>
-                                <script>videojs('video-${v.id}');</script>`;
+                                </video-js>`;
                             list.appendChild(div);
+                            videojs('video-${v.id}');
                         });
                     }
                 })
                 .catch(err => {
-                    console.error('Fetch error:', err); // Debug in browser console
+                    console.error('Fetch error:', err); // Debug: Error details
                     document.getElementById('video-list').innerHTML = '<p class="error">Error loading videos: ' + err.message + '. Please try again.</p>';
                 });
         }
