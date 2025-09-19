@@ -2,7 +2,7 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import psycopg2
+import psycopg
 import qrcode
 from io import BytesIO
 from PIL import Image
@@ -24,11 +24,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.effective_user.username or "Unknown"
     try:
         conn_str = os.environ['DATABASE_URL']
-        conn = psycopg2.connect(conn_str)
-        c = conn.cursor()
-        c.execute("INSERT INTO users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING", (user_id, username))
-        conn.commit()
-        conn.close()
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as c:
+                c.execute("INSERT INTO users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING", (user_id, username))
         
         qr_data = f"https://tesla-video-streamer.onrender.com/login?user_id={user_id}"
         qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -57,11 +55,9 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         conn_str = os.environ['DATABASE_URL']
-        conn = psycopg2.connect(conn_str)
-        c = conn.cursor()
-        c.execute("INSERT INTO videos (user_id, url, title) VALUES (%s, %s, %s)", (user_id, url, title))
-        conn.commit()
-        conn.close()
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as c:
+                c.execute("INSERT INTO videos (user_id, url, title) VALUES (%s, %s, %s)", (user_id, url, title))
         logger.info(f"Added video for user {user_id}: {title}")
         await update.message.reply_text(f"Added: {title}\nOpen your website in Tesla to play!")
     except Exception as e:

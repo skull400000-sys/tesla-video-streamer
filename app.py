@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template_string, request, jsonify
-import psycopg2
+import psycopg
 from database import init_db
 
 app = Flask(__name__)
@@ -28,25 +28,25 @@ VIDEO_TEMPLATE = '''
     <div id="video-list"></div>
     <script>
         const userId = '{{user_id}}';
-        console.log('User ID:', userId); // Debug
+        console.log('User ID:', userId);
         if (!userId) {
             document.getElementById('video-list').innerHTML = '<p class="error">No user ID provided. Please scan the QR code from the bot.</p>';
         } else {
             const videoUrl = '/videos?user_id=' + encodeURIComponent(userId);
-            console.log('Fetching:', videoUrl); // Debug
+            console.log('Fetching:', videoUrl);
             fetch(videoUrl)
                 .then(r => {
                     if (!r.ok) throw new Error('Fetch failed: ' + r.status + ' ' + r.statusText);
                     return r.json();
                 })
                 .then(videos => {
-                    console.log('Fetched videos:', videos); // Debug
+                    console.log('Fetched videos:', videos);
                     const list = document.getElementById('video-list');
                     if (videos.length === 0) {
                         list.innerHTML = '<p>No videos added yet. Send a video URL to the Telegram bot.</p>';
                     } else {
                         videos.forEach(v => {
-                            const mimeType = v.url.toLowerCase().endswith('.mkv') ? 'video/x-matroska' : 'video/mp4';
+                            const mimeType = v.url.toLowerCase().endsWith('.mkv') ? 'video/x-matroska' : 'video/mp4';
                             const div = document.createElement('div');
                             div.className = 'video-container';
                             div.innerHTML = `<h3>${v.title}</h3>
@@ -59,7 +59,7 @@ VIDEO_TEMPLATE = '''
                     }
                 })
                 .catch(err => {
-                    console.error('Fetch error:', err); // Debug
+                    console.error('Fetch error:', err);
                     document.getElementById('video-list').innerHTML = '<p class="error">Error loading videos: ' + err.message + '. Please try again.</p>';
                 });
         }
@@ -87,11 +87,10 @@ def get_videos():
     
     try:
         conn_str = os.environ['DATABASE_URL']
-        conn = psycopg2.connect(conn_str)
-        c = conn.cursor()
-        c.execute("SELECT id, title, url FROM videos WHERE user_id = %s ORDER BY added_at DESC", (user_id,))
-        videos = [{'id': row[0], 'title': row[1], 'url': row[2]} for row in c.fetchall()]
-        conn.close()
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT id, title, url FROM videos WHERE user_id = %s ORDER BY added_at DESC", (user_id,))
+                videos = [{'id': row[0], 'title': row[1], 'url': row[2]} for row in c.fetchall()]
         print(f"Fetched {len(videos)} videos for user_id {user_id}: {videos}")
         return jsonify(videos)
     except Exception as e:
