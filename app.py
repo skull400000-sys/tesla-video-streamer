@@ -55,6 +55,7 @@ VIDEO_TEMPLATE = '''
                     }
                 })
                 .catch(err => {
+                    console.error('Fetch error:', err); // Debug in browser console
                     document.getElementById('video-list').innerHTML = '<p class="error">Error loading videos: ' + err.message + '. Please try again.</p>';
                 });
         }
@@ -86,7 +87,7 @@ def get_videos():
         c.execute("SELECT id, title, url FROM videos WHERE user_id = ? ORDER BY added_at DESC", (user_id,))
         videos = [{'id': row[0], 'title': row[1], 'url': row[2]} for row in c.fetchall()]
         conn.close()
-        print(f"Fetched {len(videos)} videos for user_id {user_id}")
+        print(f"Fetched {len(videos)} videos for user_id {user_id}: {videos}")  # Detailed logging
         return jsonify(videos)
     except Exception as e:
         print(f"Error fetching videos for user_id {user_id}: {e}")
