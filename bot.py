@@ -3,9 +3,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import psycopg
-import qrcode
-from io import BytesIO
-from PIL import Image
+# Note: qrcode, BytesIO, and Image imports have been removed as they are no longer needed.
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -23,23 +21,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with conn.cursor() as c:
                 c.execute("INSERT INTO users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING", (user_id, username))
         
-        # *** IMPORTANT: Update this URL with your new Fly.io hostname ***
-        app_hostname = "https://teslastreamer.fly.dev" # <-- CHANGE THIS
+        app_hostname = "https://teslastreamer.fly.dev" # <-- Make sure this is your correct URL
+        login_url = f"{app_hostname}/login?user_id={user_id}"
         
-        qr_data = f"{app_hostname}/login?user_id={user_id}"
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(qr_data)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        bio = BytesIO()
-        img.save(bio, 'PNG')
-        bio.seek(0)
-        
-        await update.message.reply_photo(photo=bio, caption="Scan this QR in your Tesla browser to log in and see your videos!")
+        # *** CHANGE IS HERE: Replaced QR code generation with a simple text link ***
+        message = (
+            "Click this link in your Tesla browser to log in and see your videos.\n\n"
+            f"➡️ [{login_url}]({login_url})"
+        )
+        await update.message.reply_text(message, parse_mode='Markdown')
+
     except Exception as e:
         logger.error(f"Error in /start: {e}")
-        await update.message.reply_text("Error generating QR code. Please try again.")
+        await update.message.reply_text("Error generating login link. Please try again.")
 
 async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received message from user {update.effective_user.id}: {update.message.text}")
