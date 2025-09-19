@@ -7,16 +7,11 @@ import qrcode
 from io import BytesIO
 from PIL import Image
 
-# NOTE: We are removing 'from database import init_db' and the init_db() call
-# because the web process already handles database initialization.
-
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ['BOT_TOKEN']
-
-# The database is initialized by the 'web' process, so we remove init_db() here.
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received /start from user {update.effective_user.id}")
@@ -66,23 +61,39 @@ async def add_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error adding video: {e}")
         await update.message.reply_text("Error adding video. Please try again.")
 
+# *** NEW FUNCTION: Handles the /clear command ***
+async def clear_videos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    logger.info(f"Received /clear command from user {user_id}")
+    try:
+        conn_str = os.environ['DATABASE_URL']
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as c:
+                c.execute("DELETE FROM videos WHERE user_id = %s", (user_id,))
+                deleted_count = c.rowcount  # Get the number of rows deleted
+        
+        logger.info(f"Cleared {deleted_count} videos for user {user_id}")
+        await update.message.reply_text(f"✅ Successfully cleared {deleted_count} video(s).")
+    except Exception as e:
+        logger.error(f"Error clearing videos for user {user_id}: {e}")
+        await update.message.reply_text("❌ Error clearing videos. Please try again.")
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error: {context.error}")
     if update and update.message:
         await update.message.reply_text("An error occurred. Please try again or contact support.")
 
-# *** CHANGE IS HERE: Reverted main() to a standard synchronous function ***
 def main():
     try:
         logger.info("Starting bot...")
         application = Application.builder().token(BOT_TOKEN).build()
         
         application.add_handler(CommandHandler("start", start))
+        # *** REGISTER NEW COMMAND: Add the handler for /clear ***
+        application.add_handler(CommandHandler("clear", clear_videos))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, add_video))
         application.add_error_handler(error_handler)
         
-        # This function is blocking and handles the async loop internally.
-        # The drop_pending_updates=True argument helps prevent conflicts after a restart.
         application.run_polling(drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Bot failed to start: {e}")
