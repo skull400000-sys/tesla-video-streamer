@@ -20,7 +20,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     # Generate QR for login (links to website with user_id)
-    qr_data = f"https://your-app-name.onrender.com/login?user_id={user_id}"  # Update after getting Render URL
+    qr_data = f"https://tesla-video-streamer.onrender.com/login?user_id={user_id}"
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
     qr.add_data(qr_data)
     qr.make(fit=True)
