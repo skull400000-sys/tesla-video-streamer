@@ -1,6 +1,5 @@
 import os
 import logging
-import asyncio # Import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import psycopg
@@ -8,7 +7,8 @@ import qrcode
 from io import BytesIO
 from PIL import Image
 
-from database import init_db
+# NOTE: We are removing 'from database import init_db' and the init_db() call
+# because the web process already handles database initialization.
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ['BOT_TOKEN']
 
-# Initialize database
-init_db()
+# The database is initialized by the 'web' process, so we remove init_db() here.
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received /start from user {update.effective_user.id}")
@@ -29,6 +28,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with conn.cursor() as c:
                 c.execute("INSERT INTO users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING", (user_id, username))
         
+        # Ensure your web URL is correct here
         qr_data = f"https://tesla-video-streamer.onrender.com/login?user_id={user_id}"
         qr = qrcode.QRCode(version=1, box_size=10, border=5)
         qr.add_data(qr_data)
@@ -71,25 +71,22 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.message:
         await update.message.reply_text("An error occurred. Please try again or contact support.")
 
-# *** CHANGE IS HERE: The main function is now async to handle awaits correctly ***
-async def main():
+# *** CHANGE IS HERE: Reverted main() to a standard synchronous function ***
+def main():
     try:
         logger.info("Starting bot...")
         application = Application.builder().token(BOT_TOKEN).build()
-        
-        # This properly awaits the webhook deletion to prevent conflicts
-        await application.bot.delete_webhook(drop_pending_updates=True)
         
         application.add_handler(CommandHandler("start", start))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, add_video))
         application.add_error_handler(error_handler)
         
-        # This runs the bot and drops pending updates on startup
-        await application.run_polling(drop_pending_updates=True)
+        # This function is blocking and handles the async loop internally.
+        # The drop_pending_updates=True argument helps prevent conflicts after a restart.
+        application.run_polling(drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Bot failed to start: {e}")
         raise
 
 if __name__ == '__main__':
-    # This runs the async main function
-    asyncio.run(main())
+    main()
